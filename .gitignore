@@ -1,0 +1,14 @@
+bin/
+obj/
+out/
+*.dll
+*.exe
+*.pdb
+*.wasm
+*.wasm.br
+*.wasm.gz
+*.js.map
+.vs/
+.vscode/
+.DS_Store
+node_modules/
