@@ -1,4 +1,4 @@
-name: Deploy DemoBlazor to GitHub Pages
+name: Deploy DemoBlazor to GitHub Pages (fixed path)
 
 on:
   push:
@@ -28,7 +28,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # directory containing files to publish (publish output's wwwroot)
           publish_dir: ./out/wwwroot
           publish_branch: gh-pages
           destination_dir: PortfolioManagement
