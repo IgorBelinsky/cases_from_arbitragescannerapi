@@ -7,14 +7,13 @@
 @using Microsoft.JSInterop
 @using MudBlazor
 
-
 <MudPaper Class="pa-4">
     <MudText Typo="Typo.h5">Portfolios</MudText>
     <MudDivider Class="my-2" />
     
     <div class="d-flex gap-2 mb-4">
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewPortfolio">Add new</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="OpenConfigDialog">Config</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="OpenConfigDialog" Disabled="@(selectedPortfolio == null)">Config</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedPortfolio" Disabled="@(selectedPortfolio == null)">Delete</MudButton>
     </div>
 
@@ -93,10 +92,11 @@
         // Если данных нет или произошла ошибка, создаем начальные данные
         portfolios = new List<Portfolio>
         {
-            new Portfolio { Number = 1 },
-            new Portfolio { Number = 2 },
-            new Portfolio { Number = 3 }
+            new Portfolio { Number = 1, Id = Guid.NewGuid() },
+            new Portfolio { Number = 2, Id = Guid.NewGuid() },
+            new Portfolio { Number = 3, Id = Guid.NewGuid() }
         };
+        await SavePortfoliosToSession();
     }
 
     private async Task SavePortfoliosToSession()
@@ -116,7 +116,8 @@
     {
         var newPortfolio = new Portfolio 
         { 
-            Number = portfolios.Count + 1 
+            Number = portfolios.Count + 1,
+            Id = Guid.NewGuid()
         };
         portfolios.Add(newPortfolio);
         await SavePortfoliosToSession();
@@ -126,6 +127,9 @@
     {
         if (selectedPortfolio != null)
         {
+            // Удаляем также кошельки этого портфеля
+            await JSRuntime.InvokeVoidAsync("sessionStorage.removeItem", $"wallets_{selectedPortfolio.Id}");
+            
             portfolios.Remove(selectedPortfolio);
             RenumberPortfolios();
             selectedPortfolio = null;
@@ -152,17 +156,26 @@
 
     private void OpenConfigDialog()
     {
+        if (selectedPortfolio == null) return;
+
+        var parameters = new DialogParameters<WalletConfigDialog>
+        {
+            { x => x.PortfolioId, selectedPortfolio.Id }
+        };
+
         var options = new DialogOptions 
         { 
             MaxWidth = MaxWidth.Large, 
             FullWidth = true,
             CloseButton = true
         };
-        DialogService.Show<WalletConfigDialog>("Collection of wallets", options);
+        
+        DialogService.Show<WalletConfigDialog>($"Collection of wallets - {selectedPortfolio.Name}", parameters, options);
     }
 
     private class Portfolio
     {
+        public Guid Id { get; set; }
         public int Number { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Sol { get; set; } = string.Empty;
