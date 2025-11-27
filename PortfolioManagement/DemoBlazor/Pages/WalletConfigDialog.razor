@@ -1,52 +1,45 @@
-@using MudBlazor
-@using System.Text.Json
 @using Microsoft.JSInterop
+@using MudBlazor
 @inject IJSRuntime JSRuntime
+@inject IDialogService DialogService
 
 <MudDialog>
     <DialogContent>
-        <MudText Typo="Typo.h5" Class="mb-4">Collection of wallets</MudText>
-        
-        <div class="d-flex gap-2 mb-4">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewWallet">Add</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedWallet" Disabled="@(selectedWallet == null)">Delete</MudButton>
-        </div>
+        <MudPaper Class="pa-4" Style="height: 400px; overflow-y: auto;">
+            <MudTable Items="@wallets" Hover="true" Dense="true" Bordered="true" 
+                      @bind-SelectedItem="selectedWallet" Style="table-layout: fixed;">
+                <HeaderContent>
+                    <MudTh Style="width: 60px;">№</MudTh>
+                    <MudTh>Address</MudTh>
+                    <MudTh Style="width: 80px;">Sol</MudTh>
+                    <MudTh Style="width: 80px;">wSOL</MudTh>
+                    <MudTh Style="width: 80px;">USDC</MudTh>
+                    <MudTh Style="width: 80px;">All</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+    <MudTd DataLabel="№">@context?.Number</MudTd>
+    <MudTd DataLabel="Address">
+        @if (context != null)
+        {
+            <MudTextField @bind-Value="@context.Sol" 
+                          MaxLength="60" 
+                          OnBlur="@(() => OnAddressBlur(context))"
+                          Immediate="false" />
+        }
+    </MudTd>
+    <MudTd DataLabel="Sol">@context?.Sol</MudTd>
+    <MudTd DataLabel="wSOL">@context?.WSol</MudTd>
+    <MudTd DataLabel="USDC">@context?.Usdc</MudTd>
+    <MudTd DataLabel="All">@context?.All</MudTd>
+</RowTemplate>
 
-        <MudTable 
-            Items="@wallets" 
-            T="Wallet" 
-            Hover="true"
-            Bordered="true"
-            Breakpoint="Breakpoint.Sm"
-            FixedHeader="true"
-            Height="400px"
-            @bind-SelectedItem="selectedWallet"
-            RowStyleFunc="@SelectedRowStyleFunc">
-            <HeaderContent>
-                <MudTh Style="width: 60px;">№</MudTh>
-                <MudTh>Address</MudTh>
-                <MudTh>Sol</MudTh>
-                <MudTh>wSOL</MudTh>
-                <MudTh>USDC</MudTh>
-                <MudTh>All</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="№">@context.Number</MudTd>
-                <MudTd DataLabel="Address">
-                    <MudTextField @bind-Value="context.Address" 
-                                  Margin="Margin.Dense" 
-                                  Variant="Variant.Text"
-                                  MaxLength="60"
-                                  Immediate="false"
-                                  OnKeyDown="@((e) => HandleKeyDown(e, context))"
-                                  OnBlur="@(() => ValidateAndSaveAddress(context))"/>
-                </MudTd>
-                <MudTd DataLabel="Sol">@context.Sol</MudTd>
-                <MudTd DataLabel="wSOL">@context.WSol</MudTd>
-                <MudTd DataLabel="USDC">@context.Usdc</MudTd>
-                <MudTd DataLabel="All">@context.All</MudTd>
-            </RowTemplate>
-        </MudTable>
+            </MudTable>
+        </MudPaper>
+
+        <div class="d-flex gap-2 mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewWallet">Add</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteWallet" Disabled="@(selectedWallet == null)">Delete</MudButton>
+        </div>
     </DialogContent>
 </MudDialog>
 
@@ -55,87 +48,99 @@
     MudDialogInstance? MudDialog { get; set; }
 
     [Parameter]
-    public Guid PortfolioId { get; set; }
+    public string PortfolioId { get; set; } = string.Empty;
 
     private List<Wallet> wallets = new List<Wallet>();
     private Wallet? selectedWallet;
     private string tempAddress = string.Empty;
-    private bool isInitialized = false;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnInitializedAsync()
     {
-        if (firstRender && !isInitialized)
+        await LoadWalletsFromStorage();
+    }
+
+    private async Task OnAddressBlur(Wallet wallet)
+    {
+        if (string.IsNullOrWhiteSpace(wallet.Sol))
         {
-            await LoadWalletsFromSession();
-            isInitialized = true;
-            StateHasChanged();
+            await SaveWalletsToStorage();
+            return;
+        }
+
+        bool isValid = await ValidateSolanaAddress(wallet.Sol);
+        if (isValid)
+        {
+            await SaveWalletsToStorage();
+        }
+        else
+        {
+            wallet.Sol = string.Empty; // Очищаем невалидный адрес
         }
     }
 
-    private async Task LoadWalletsFromSession()
+    private async Task<bool> ValidateSolanaAddress(string address)
     {
         try
         {
-            var storageKey = $"wallets_{PortfolioId}";
-            var json = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", storageKey);
+            using var httpClient = new HttpClient();
+            var url = $"https://b2b.api.arbitragescanner.io/api/onchain/v1/solana/address/general_info?address={address}";
             
-            if (!string.IsNullOrEmpty(json))
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("accept", "application/json");
+            request.Headers.Add("X-API-Key", "JYnC6aZete6f6edaksMh5x");
+
+            var response = await httpClient.SendAsync(request);
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode || body.Contains("\"error\""))
             {
-                var loadedWallets = JsonSerializer.Deserialize<List<Wallet>>(json);
-                if (loadedWallets != null && loadedWallets.Count > 0)
-                {
-                    wallets = loadedWallets;
-                    return;
-                }
+                await ShowInvalidAddressModal();
+                return false;
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading wallets: {ex.Message}");
-        }
 
-        // Если данных нет или произошла ошибка, создаем начальные данные
-        wallets = new List<Wallet>
-        {
-            new Wallet { Number = 1 },
-            new Wallet { Number = 2 },
-            new Wallet { Number = 3 }
-        };
-        await SaveWalletsToSession();
-    }
-
-    private async Task SaveWalletsToSession()
-    {
-        try
-        {
-            var storageKey = $"wallets_{PortfolioId}";
-            var json = JsonSerializer.Serialize(wallets);
-            await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", storageKey, json);
+            return true;
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine($"Error saving wallets: {ex.Message}");
+            await ShowInvalidAddressModal();
+            return false;
         }
     }
 
-    private async Task AddNewWallet()
+    private async Task ShowInvalidAddressModal()
     {
-        var newWallet = new Wallet 
-        { 
-            Number = wallets.Count + 1 
+        var parameters = new DialogParameters
+        {
+            { "Message", "Invalid Solana address" }
         };
+
+        var options = new DialogOptions
+        {
+            NoHeader = true,
+            CloseOnEscapeKey = false,
+            CloseButton = false
+        };
+
+        var dialog = DialogService.Show<InvalidAddressDialog>("", parameters, options);
+        await Task.Delay(2000);
+        dialog.Close();
+    }
+
+    private void AddNewWallet()
+    {
+        var newWallet = new Wallet { Number = wallets.Count + 1 };
         wallets.Add(newWallet);
-        await SaveWalletsToSession();
+        SaveWalletsToStorage().Wait();
     }
 
-    private async Task DeleteSelectedWallet()
+    private void DeleteWallet()
     {
         if (selectedWallet != null)
         {
             wallets.Remove(selectedWallet);
             RenumberWallets();
             selectedWallet = null;
-            await SaveWalletsToSession();
+            SaveWalletsToStorage().Wait();
         }
     }
 
@@ -147,54 +152,36 @@
         }
     }
 
-    private string SelectedRowStyleFunc(Wallet wallet, int rowNumber)
+    private async Task LoadWalletsFromStorage()
     {
-        if (selectedWallet != null && selectedWallet.Equals(wallet))
+        var key = $"wallets_{PortfolioId}";
+        var json = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", key);
+        
+        if (!string.IsNullOrEmpty(json))
         {
-            return "background-color: #E3F2FD;";
+            wallets = System.Text.Json.JsonSerializer.Deserialize<List<Wallet>>(json) ?? new List<Wallet>();
         }
-        return string.Empty;
-    }
-
-    private void HandleKeyDown(KeyboardEventArgs e, Wallet wallet)
-    {
-        if (e.Key == "Enter")
+        else
         {
-            ValidateAndSaveAddress(wallet);
-        }
-    }
-
-    private async void ValidateAndSaveAddress(Wallet wallet)
-    {
-        if (!string.IsNullOrWhiteSpace(wallet.Address))
-        {
-            // Валидация адреса
-            bool isValid = ValidateAddress(wallet.Address);
-            
-            if (isValid)
+            wallets = new List<Wallet>
             {
-                // Адрес валидный, сохраняем
-                tempAddress = wallet.Address;
-                await SaveWalletsToSession();
-            }
-            else
-            {
-                // Если валидация не прошла, можно очистить или оставить предыдущее значение
-                wallet.Address = tempAddress;
-            }
+                new Wallet { Number = 1 },
+                new Wallet { Number = 2 },
+                new Wallet { Number = 3 }
+            };
         }
     }
 
-    private bool ValidateAddress(string address)
+    private async Task SaveWalletsToStorage()
     {
-        // Пока всегда возвращаем true (валидация пройдена)
-        return true;
+        var key = $"wallets_{PortfolioId}";
+        var json = System.Text.Json.JsonSerializer.Serialize(wallets);
+        await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", key, json);
     }
 
-    private class Wallet
+    public class Wallet
     {
         public int Number { get; set; }
-        public string Address { get; set; } = string.Empty;
         public string Sol { get; set; } = string.Empty;
         public string WSol { get; set; } = string.Empty;
         public string Usdc { get; set; } = string.Empty;

@@ -158,9 +158,9 @@
 {
     if (selectedPortfolio == null) return;
 
-    var parameters = new DialogParameters<WalletConfigDialog>
+    var parameters = new DialogParameters
     {
-        { x => x.PortfolioId, selectedPortfolio.Id }
+        { "PortfolioId", selectedPortfolio.Id }
     };
 
     var options = new DialogOptions 
@@ -171,10 +171,10 @@
     };
     
     var portfolioTitle = string.IsNullOrWhiteSpace(selectedPortfolio.Name) 
-        ? $"Portfolio #{selectedPortfolio.Number}" 
-        : selectedPortfolio.Name;
+        ? $"Wallet Configuration - Portfolio {selectedPortfolio.Number}" 
+        : $"Wallet Configuration - {selectedPortfolio.Name}";
     
-    DialogService.Show<WalletConfigDialog>($"Wallets - {portfolioTitle}", parameters, options);
+    DialogService.Show<WalletConfigDialog>(portfolioTitle, parameters, options);
 }
 
     private class Portfolio
