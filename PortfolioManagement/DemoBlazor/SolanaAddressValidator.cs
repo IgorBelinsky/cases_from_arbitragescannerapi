@@ -9,9 +9,6 @@ namespace DemoBlazor
         private readonly HttpClient _httpClient;
         private const string ApiUrl = "https://b2b.api.arbitragescanner.io/api/onchain/v1/solana/address/general_info";
         private const string ApiKey = "JYnC6aZete6f6edaksMh5x";
-        
-        // CORS Proxy для обхода ограничений
-        private const string CorsProxy = "https://corsproxy.io/?";
 
         public SolanaAddressValidator(HttpClient httpClient)
         {
@@ -27,19 +24,17 @@ namespace DemoBlazor
 
             try
             {
-                var encodedAddress = Uri.EscapeDataString(address);
-                var apiUrlWithParams = $"{ApiUrl}?address={encodedAddress}";
+                // Формируем полный URL к API
+                var fullApiUrl = $"{ApiUrl}?address={address}";
                 
-                // Используем CORS прокси
-                var url = $"{CorsProxy}{Uri.EscapeDataString(apiUrlWithParams)}";
+                // Используем AllOrigins прокси (он проще работает)
+                var proxyUrl = $"https://api.allorigins.win/raw?url={Uri.EscapeDataString(fullApiUrl)}";
                 
-                Console.WriteLine($"Calling API via CORS proxy: {url}");
+                Console.WriteLine($"Calling API via proxy: {proxyUrl}");
 
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Add("accept", "application/json");
-                request.Headers.Add("X-API-Key", ApiKey);
-
-                var response = await _httpClient.SendAsync(request);
+                // Делаем простой GET запрос без дополнительных заголовков
+                // (прокси сам добавит нужные заголовки к внешнему API)
+                var response = await _httpClient.GetAsync(proxyUrl);
                 var body = await response.Content.ReadAsStringAsync();
 
                 Console.WriteLine($"Response Status: {response.StatusCode}");
