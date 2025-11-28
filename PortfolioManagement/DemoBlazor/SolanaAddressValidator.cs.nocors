@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Threading.Tasks;
 
 namespace DemoBlazor
@@ -9,9 +10,6 @@ namespace DemoBlazor
         private readonly HttpClient _httpClient;
         private const string ApiUrl = "https://b2b.api.arbitragescanner.io/api/onchain/v1/solana/address/general_info";
         private const string ApiKey = "JYnC6aZete6f6edaksMh5x";
-        
-        // CORS Proxy для обхода ограничений
-        private const string CorsProxy = "https://corsproxy.io/?";
 
         public SolanaAddressValidator(HttpClient httpClient)
         {
@@ -27,14 +25,8 @@ namespace DemoBlazor
 
             try
             {
-                var encodedAddress = Uri.EscapeDataString(address);
-                var apiUrlWithParams = $"{ApiUrl}?address={encodedAddress}";
+                var url = $"{ApiUrl}?address={address}";
                 
-                // Используем CORS прокси
-                var url = $"{CorsProxy}{Uri.EscapeDataString(apiUrlWithParams)}";
-                
-                Console.WriteLine($"Calling API via CORS proxy: {url}");
-
                 var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Add("accept", "application/json");
                 request.Headers.Add("X-API-Key", ApiKey);
@@ -42,16 +34,17 @@ namespace DemoBlazor
                 var response = await _httpClient.SendAsync(request);
                 var body = await response.Content.ReadAsStringAsync();
 
-                Console.WriteLine($"Response Status: {response.StatusCode}");
-                Console.WriteLine($"Response Body: {body}");
+                Console.WriteLine($"API Response Status: {response.StatusCode}");
+                Console.WriteLine($"API Response Body: {body}");
 
+                // Проверяем код ответа 400 или наличие "error" в теле ответа
                 if ((int)response.StatusCode == 400 || body.Contains("\"error\""))
                 {
-                    Console.WriteLine("Validation FAILED");
+                    Console.WriteLine("Validation FAILED - Invalid address");
                     return false;
                 }
 
-                Console.WriteLine("Validation SUCCESS");
+                Console.WriteLine("Validation SUCCESS - Valid address");
                 return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
