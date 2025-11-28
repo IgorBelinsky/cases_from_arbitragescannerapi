@@ -24,7 +24,7 @@
                     <MudTd DataLabel="Address">
                         @if (context != null)
                         {
-                            <MudTextField @bind-Value="@context.Sol" 
+                            <MudTextField @bind-Value="@context.Address" 
                                           MaxLength="60" 
                                           OnBlur="@(() => OnAddressBlur(context))"
                                           Immediate="false" />
@@ -50,7 +50,7 @@
     MudDialogInstance? MudDialog { get; set; }
 
     [Parameter]
-    public string PortfolioId { get; set; } = string.Empty;
+    public Guid PortfolioId { get; set; }
 
     private List<Wallet> wallets = new List<Wallet>();
     private Wallet? selectedWallet;
@@ -62,20 +62,20 @@
 
     private async Task OnAddressBlur(Wallet wallet)
     {
-        if (string.IsNullOrWhiteSpace(wallet.Sol))
+        if (string.IsNullOrWhiteSpace(wallet.Address))
         {
             await SaveWalletsToStorage();
             return;
         }
 
-        bool isValid = await ValidateSolanaAddress(wallet.Sol);
+        bool isValid = await ValidateSolanaAddress(wallet.Address);
         if (isValid)
         {
             await SaveWalletsToStorage();
         }
         else
         {
-            wallet.Sol = string.Empty;
+            wallet.Address = string.Empty;
             StateHasChanged();
         }
     }
@@ -184,6 +184,7 @@
     public class Wallet
     {
         public int Number { get; set; }
+        public string Address { get; set; } = string.Empty;
         public string Sol { get; set; } = string.Empty;
         public string WSol { get; set; } = string.Empty;
         public string Usdc { get; set; } = string.Empty;
