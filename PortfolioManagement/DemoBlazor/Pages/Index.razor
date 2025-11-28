@@ -168,29 +168,26 @@
     { 
         MaxWidth = MaxWidth.Large,
         FullWidth = true,
-        CloseButton = true 
+        CloseButton = true,
+        CloseOnEscapeKey = false,
+        DisableBackdropClick = true
     };
 
     var dialog = await DialogService.ShowAsync<WalletConfigDialog>("", parameters, options);
     var result = await dialog.Result;
 
-    if (!result.Canceled)
+    // Получаем данные при закрытии
+    if (result?.Data != null)
     {
-        // Получаем суммы из диалога
-        var dialogInstance = dialog.Dialog as WalletConfigDialog;
-        if (dialogInstance != null)
+        var summary = result.Data as WalletConfigDialog.WalletSummary;
+        if (summary != null)
         {
-            var summary = dialogInstance.GetSummary();
-            
-            // Обновляем поля портфолио
             selectedPortfolio.Sol = summary.TotalSol.ToString("F2");
             selectedPortfolio.WSol = summary.TotalWSol.ToString("F2");
             selectedPortfolio.Usdc = summary.TotalUsdc.ToString("F2");
             selectedPortfolio.All = summary.TotalAll.ToString("F2");
             
             StateHasChanged();
-            
-            // Сохраняем в sessionStorage
             await SavePortfoliosToSession();
         }
     }
