@@ -12,34 +12,42 @@
     </TitleContent>
     <DialogContent>
         <MudPaper Class="pa-4" Style="height: 400px; overflow-y: auto;">
-            <MudTable Items="@wallets" Hover="true" Dense="true" Bordered="true" 
-                      @bind-SelectedItem="selectedWallet" Style="table-layout: fixed;">
-                <HeaderContent>
-                    <MudTh Style="width: 60px;">№</MudTh>
-                    <MudTh>Address</MudTh>
-                    <MudTh Style="width: 80px;">Sol</MudTh>
-                    <MudTh Style="width: 80px;">wSOL</MudTh>
-                    <MudTh Style="width: 80px;">USDC</MudTh>
-                    <MudTh Style="width: 80px;">All</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="№">@context?.Number</MudTd>
-                    <MudTd DataLabel="Address">
-                        @if (context != null)
-                        {
-                            <MudTextField @bind-Value="@context.Address" 
-                                          MaxLength="60" 
-                                          OnKeyDown="@(async (e) => await OnAddressKeyDown(e, context))"
-                                          OnBlur="@(async () => await OnAddressBlur(context))"
-                                          Immediate="false" />
-                        }
-                    </MudTd>
-                    <MudTd DataLabel="Sol">@context?.Sol</MudTd>
-                    <MudTd DataLabel="wSOL">@context?.WSol</MudTd>
-                    <MudTd DataLabel="USDC">@context?.Usdc</MudTd>
-                    <MudTd DataLabel="All">@context?.All</MudTd>
-                </RowTemplate>
-            </MudTable>
+           <MudTable Items="@wallets" Hover="true" Dense="true" Bordered="true" 
+          @bind-SelectedItem="selectedWallet" Style="table-layout: fixed;">
+    <HeaderContent>
+        <MudTh Style="width: 60px;">№</MudTh>
+        <MudTh>Address</MudTh>
+        <MudTh Style="width: 80px;">Sol</MudTh>
+        <MudTh Style="width: 80px;">wSOL</MudTh>
+        <MudTh Style="width: 80px;">USDC</MudTh>
+        <MudTh Style="width: 80px;">All</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="№">@context?.Number</MudTd>
+        <MudTd DataLabel="Address">
+            @if (context != null)
+            {
+                <MudTextField @bind-Value="@context.Address" 
+                              MaxLength="60" 
+                              OnKeyUp="@(async (e) => await OnAddressKeyUp(e, context))"
+                              OnBlur="@(async () => await OnAddressBlur(context))"
+                              Immediate="false" />
+            }
+        </MudTd>
+        <MudTd DataLabel="Sol">@context?.Sol</MudTd>
+        <MudTd DataLabel="wSOL">@context?.WSol</MudTd>
+        <MudTd DataLabel="USDC">@context?.Usdc</MudTd>
+        <MudTd DataLabel="All">@context?.All</MudTd>
+    </RowTemplate>
+    <FooterContent>
+        <MudTd Style="font-weight: bold;">Total:</MudTd>
+        <MudTd></MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalSol().ToString("F2")</MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalWSol().ToString("F2")</MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalUsdc().ToString("F2")</MudTd>
+        <MudTd Style="font-weight: bold;">@GetTotalAll().ToString("F2")</MudTd>
+    </FooterContent>
+</MudTable>
         </MudPaper>
 
         <div class="d-flex gap-2 mt-4">
@@ -65,14 +73,14 @@
         await LoadWalletsFromStorage();
     }
 
-    private async Task OnAddressKeyDown(KeyboardEventArgs e, Wallet wallet)
+    private async Task OnAddressKeyUp(KeyboardEventArgs e, Wallet wallet)
+{
+    if (e.Key == "Enter")
     {
-        if (e.Key == "Enter" || e.Key == "Return")
-        {
-            Console.WriteLine($"Enter pressed for address: {wallet.Address}");
-            await ValidateAndSaveAddress(wallet);
-        }
+        Console.WriteLine($"Enter pressed for address: {wallet.Address}");
+        await ValidateAndSaveAddress(wallet);
     }
+}
 
     private async Task OnAddressBlur(Wallet wallet)
     {
@@ -206,6 +214,53 @@
         var json = System.Text.Json.JsonSerializer.Serialize(wallets);
         await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", key, json);
     }
+
+    private decimal GetTotalSol()
+{
+    return wallets
+        .Where(w => !string.IsNullOrWhiteSpace(w.Sol))
+        .Sum(w => decimal.TryParse(w.Sol, out var val) ? val : 0);
+}
+
+private decimal GetTotalWSol()
+{
+    return wallets
+        .Where(w => !string.IsNullOrWhiteSpace(w.WSol))
+        .Sum(w => decimal.TryParse(w.WSol, out var val) ? val : 0);
+}
+
+private decimal GetTotalUsdc()
+{
+    return wallets
+        .Where(w => !string.IsNullOrWhiteSpace(w.Usdc))
+        .Sum(w => decimal.TryParse(w.Usdc, out var val) ? val : 0);
+}
+
+private decimal GetTotalAll()
+{
+    return wallets
+        .Where(w => !string.IsNullOrWhiteSpace(w.All))
+        .Sum(w => decimal.TryParse(w.All, out var val) ? val : 0);
+}
+
+public WalletSummary GetSummary()
+{
+    return new WalletSummary
+    {
+        TotalSol = GetTotalSol(),
+        TotalWSol = GetTotalWSol(),
+        TotalUsdc = GetTotalUsdc(),
+        TotalAll = GetTotalAll()
+    };
+}
+
+public class WalletSummary
+{
+    public decimal TotalSol { get; set; }
+    public decimal TotalWSol { get; set; }
+    public decimal TotalUsdc { get; set; }
+    public decimal TotalAll { get; set; }
+}
 
     
     public class Wallet
