@@ -2,6 +2,7 @@
 @using MudBlazor
 @inject IJSRuntime JSRuntime
 @inject IDialogService DialogService
+@inject SolanaAddressValidator AddressValidator
 
 <MudDialog>
     <TitleContent>
@@ -26,7 +27,8 @@
                         {
                             <MudTextField @bind-Value="@context.Address" 
                                           MaxLength="60" 
-                                          OnBlur="@(() => OnAddressBlur(context))"
+                                          OnKeyDown="@(async (e) => await OnAddressKeyDown(e, context))"
+                                          OnBlur="@(async () => await OnAddressBlur(context))"
                                           Immediate="false" />
                         }
                     </MudTd>
@@ -54,13 +56,29 @@
 
     private List<Wallet> wallets = new List<Wallet>();
     private Wallet? selectedWallet;
+    
 
     protected override async Task OnInitializedAsync()
     {
         await LoadWalletsFromStorage();
     }
 
+    private async Task OnAddressKeyDown(KeyboardEventArgs e, Wallet wallet)
+    {
+        // При нажатии Enter валидируем адрес
+        if (e.Key == "Enter" || e.Key == "Return")
+        {
+            await ValidateAndSaveAddress(wallet);
+        }
+    }
+
     private async Task OnAddressBlur(Wallet wallet)
+    {
+        // При потере фокуса (blur) также валидируем
+        await ValidateAndSaveAddress(wallet);
+    }
+
+    private async Task ValidateAndSaveAddress(Wallet wallet)
     {
         if (string.IsNullOrWhiteSpace(wallet.Address))
         {
@@ -68,44 +86,21 @@
             return;
         }
 
-        bool isValid = await ValidateSolanaAddress(wallet.Address);
+        // Используем сервис валидации
+        bool isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
+        
         if (isValid)
         {
             await SaveWalletsToStorage();
         }
         else
         {
+            // Показываем модальное окно на 2 секунды
+            await ShowInvalidAddressModal();
+            
+            // Очищаем поле адреса
             wallet.Address = string.Empty;
             StateHasChanged();
-        }
-    }
-
-    private async Task<bool> ValidateSolanaAddress(string address)
-    {
-        try
-        {
-            using var httpClient = new HttpClient();
-            var url = $"https://b2b.api.arbitragescanner.io/api/onchain/v1/solana/address/general_info?address={address}";
-            
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("accept", "application/json");
-            request.Headers.Add("X-API-Key", "JYnC6aZete6f6edaksMh5x");
-
-            var response = await httpClient.SendAsync(request);
-            var body = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode || body.Contains("\"error\""))
-            {
-                await ShowInvalidAddressModal();
-                return false;
-            }
-
-            return true;
-        }
-        catch
-        {
-            await ShowInvalidAddressModal();
-            return false;
         }
     }
 
@@ -124,6 +119,8 @@
         };
 
         var dialog = DialogService.Show<InvalidAddressDialog>("", parameters, options);
+        
+        // Закрываем через 2 секунды
         await Task.Delay(2000);
         dialog.Close();
     }
