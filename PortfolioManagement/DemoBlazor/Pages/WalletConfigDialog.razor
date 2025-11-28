@@ -1,5 +1,6 @@
 @using Microsoft.JSInterop
 @using MudBlazor
+@using System.Linq
 @inject IJSRuntime JSRuntime
 @inject IDialogService DialogService
 @inject SolanaAddressValidator AddressValidator
@@ -7,7 +8,7 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">Wallet Configuration</MudText>
+        <MudText Typo="Typo.h6">Completing the portfolio with wallets</MudText>
     </TitleContent>
     <DialogContent>
         <MudPaper Class="pa-4" Style="height: 400px; overflow-y: auto;">
@@ -82,44 +83,82 @@ private async Task OnAddressBlur(Wallet wallet)
 }
 
  private async Task ValidateAndSaveAddress(Wallet wallet)
+{
+    if (string.IsNullOrWhiteSpace(wallet.Address))
     {
-        if (string.IsNullOrWhiteSpace(wallet.Address))
-        {
-            Console.WriteLine("Address is empty, saving without validation");
-            await SaveWalletsToStorage();
-            return;
-        }
-
-        Console.WriteLine($"Starting validation for address: {wallet.Address}");
-        
-        bool isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
-        
-        Console.WriteLine($"Validation result: {isValid}");
-        
-        if (isValid)
-        {
-            Console.WriteLine("Address is valid, fetching balances...");
-            
-            // Получаем балансы
-            var balances = await BalanceService.GetBalancesAsync(wallet.Address);
-            
-            // Заполняем поля кошелька (конвертируем decimal в string)
-            wallet.Sol = balances.Sol.ToString("G");
-            wallet.WSol = balances.WSol.ToString("G");
-            wallet.Usdc = balances.Usdc.ToString("G");
-            wallet.All = balances.TotalUsd.ToString("F2");
-            
-            await SaveWalletsToStorage();
-            StateHasChanged();
-        }
-        else
-        {
-            Console.WriteLine("Address is invalid, showing modal...");
-            await ShowInvalidAddressModal();
-            wallet.Address = string.Empty;
-            StateHasChanged();
-        }
+        Console.WriteLine("Address is empty, saving without validation");
+        await SaveWalletsToStorage();
+        return;
     }
+
+    // Проверка на дубликат
+    var isDuplicate = wallets.Any(w => 
+        w != wallet && 
+        !string.IsNullOrWhiteSpace(w.Address) && 
+        w.Address.Equals(wallet.Address, StringComparison.OrdinalIgnoreCase));
+    
+    if (isDuplicate)
+    {
+        Console.WriteLine($"Duplicate address detected: {wallet.Address}");
+        await ShowDuplicateAddressModal();
+        wallet.Address = string.Empty;
+        StateHasChanged();
+        return;
+    }
+
+    Console.WriteLine($"Starting validation for address: {wallet.Address}");
+    
+    bool isValid = await AddressValidator.ValidateAddressAsync(wallet.Address);
+    
+    Console.WriteLine($"Validation result: {isValid}");
+    
+    if (isValid)
+    {
+        Console.WriteLine("Address is valid, fetching balances...");
+        
+        var balances = await BalanceService.GetBalancesAsync(wallet.Address);
+        
+        wallet.Sol = balances.Sol.ToString("G");
+        wallet.WSol = balances.WSol.ToString("G");
+        wallet.Usdc = balances.Usdc.ToString("G");
+        wallet.All = balances.TotalUsd.ToString("F2");
+        
+        await SaveWalletsToStorage();
+        StateHasChanged();
+    }
+    else
+    {
+        Console.WriteLine("Address is invalid, showing modal...");
+        await ShowInvalidAddressModal();
+        wallet.Address = string.Empty;
+        StateHasChanged();
+    }
+}
+
+private async Task ShowDuplicateAddressModal()
+{
+    await ShowMessageModal("Duplicate Wallet", "This wallet is already here");
+}
+
+private async Task ShowMessageModal(string title, string message)
+{
+    var parameters = new DialogParameters
+    {
+        ["ContentText"] = message,
+        ["ButtonText"] = "OK",
+        ["Color"] = Color.Error
+    };
+    
+    var options = new DialogOptions 
+    { 
+        CloseButton = false,
+        MaxWidth = MaxWidth.Small
+    };
+
+    var dialog = DialogService.Show<MudMessageBox>(title, parameters, options);
+    await dialog.Result;
+}
+
 
     private async Task ShowInvalidAddressModal()
     {
