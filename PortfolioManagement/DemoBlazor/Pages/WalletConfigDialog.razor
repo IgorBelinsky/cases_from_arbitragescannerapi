@@ -89,9 +89,11 @@
         </MudPaper>
 
         <div class="d-flex gap-2 mt-4">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewWallet">Add</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteWallet" Disabled="@(selectedWallet == null)">Delete</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewWallet" Disabled="@(wallets.Count >= 4)">Add</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteWallet" Disabled="@(selectedWallet == null)">Delete</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="RescanWallets">Rescan</MudButton>
         </div>
+
     </DialogContent>
 </MudDialog>
 
@@ -141,7 +143,7 @@
         if (await IsAddressDuplicate(wallet))
         {
             Console.WriteLine("Duplicate address found");
-            await ShowErrorModal("Invalid Solana address");
+            await ShowErrorModal("This wallet is already in the portfolio");
             wallet.Address = string.Empty;
             StateHasChanged();
             return;
@@ -277,6 +279,57 @@
             wallets[i].Number = i + 1;
         }
     }
+
+  private bool isRescanning = false;
+
+private async Task RescanWallets()
+{
+    if (isRescanning)
+        return;
+
+    isRescanning = true;
+    StateHasChanged();
+
+    try
+    {
+        foreach (var wallet in wallets)
+        {
+            if (string.IsNullOrWhiteSpace(wallet.Address))
+                continue;
+
+            try
+            {
+                Console.WriteLine($"Rescanning wallet: {wallet.Address}");
+                
+                loadingWallets[wallet.Address] = true;
+                StateHasChanged();
+
+                var balances = await BalanceService.GetBalancesAsync(wallet.Address);
+
+                wallet.Sol = balances.Sol.ToString("G");
+                wallet.WSol = balances.WSol.ToString("G");
+                wallet.Usdc = balances.Usdc.ToString("G");
+                wallet.All = balances.TotalUsd.ToString("F2");
+
+                loadingWallets[wallet.Address] = false;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error rescanning wallet {wallet.Address}: {ex.Message}");
+                loadingWallets[wallet.Address] = false;
+            }
+        }
+
+        await SaveWalletsToStorage();
+        StateHasChanged();
+    }
+    finally
+    {
+        isRescanning = false;
+        StateHasChanged();
+    }
+}
 
     private async Task LoadWalletsFromStorage()
     {

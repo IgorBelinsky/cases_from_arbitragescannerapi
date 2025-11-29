@@ -13,9 +13,10 @@
     <MudDivider Class="my-2" />
     
     <div class="d-flex gap-2 mb-4">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewPortfolio">Add new</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="OpenConfigDialog" Disabled="@(selectedPortfolio == null)">Config</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedPortfolio" Disabled="@(selectedPortfolio == null)">Delete</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewPortfolio" Disabled="@(portfolios.Count >= 4)">Add new</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="OpenConfigDialog" Disabled="@(selectedPortfolio == null)">Config</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedPortfolio" Disabled="@(selectedPortfolio == null)">Delete</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="RescanAllPortfolios">Rescan</MudButton>
     </div>
 
 
@@ -173,6 +174,143 @@
         return string.Empty;
     }
 
+private bool isRescanning = false;
+
+private async Task RescanAllPortfolios()
+{
+    if (isRescanning)
+        return;
+
+    isRescanning = true;
+    StateHasChanged();
+
+    try
+    {
+        foreach (var portfolio in portfolios)
+        {
+            // Загружаем кошельки портфеля
+            var walletsJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", $"wallets_{portfolio.Id}");
+            if (string.IsNullOrEmpty(walletsJson))
+                continue;
+
+            var wallets = JsonSerializer.Deserialize<List<WalletInfo>>(walletsJson);
+            if (wallets == null || wallets.Count == 0)
+                continue;
+
+            decimal totalSol = 0, totalWSol = 0, totalUsdc = 0, totalAll = 0;
+
+            // Обновляем балансы для каждого кошелька
+            foreach (var wallet in wallets)
+            {
+                if (string.IsNullOrWhiteSpace(wallet.Address))
+                    continue;
+
+                try
+                {
+                    // Используем те же сервисы что и в WalletConfigDialog
+                    var balances = await GetBalancesForAddress(wallet.Address);
+                    
+                    wallet.Sol = balances.Sol.ToString("G");
+                    wallet.WSol = balances.WSol.ToString("G");
+                    wallet.Usdc = balances.Usdc.ToString("G");
+                    wallet.All = balances.TotalUsd.ToString("F2");
+
+                    totalSol += balances.Sol;
+                    totalWSol += balances.WSol;
+                    totalUsdc += balances.Usdc;
+                    totalAll += balances.TotalUsd;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error rescanning wallet {wallet.Address}: {ex.Message}");
+                }
+            }
+
+            // Сохраняем обновленные кошельки
+            var updatedWalletsJson = JsonSerializer.Serialize(wallets);
+            await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", $"wallets_{portfolio.Id}", updatedWalletsJson);
+
+            // Обновляем суммы в портфеле
+            portfolio.Sol = totalSol.ToString("F2");
+            portfolio.WSol = totalWSol.ToString("F2");
+            portfolio.Usdc = totalUsdc.ToString("F2");
+            portfolio.All = totalAll.ToString("F2");
+        }
+
+        await SavePortfoliosToSession();
+        StateHasChanged();
+    }
+    finally
+    {
+        isRescanning = false;
+        StateHasChanged();
+    }
+}
+
+// Метод для получения балансов (вызывает API через HttpClient)
+private async Task<BalanceData> GetBalancesForAddress(string address)
+{
+    var url = $"https://vercel-apip-roxima.vercel.app/api/balances?address={address}";
+    var response = await Http.GetFromJsonAsync<BalanceResponse>(url);
+    
+    if (response?.Items == null)
+        return new BalanceData();
+
+    decimal sol = 0, wsol = 0, usdc = 0;
+
+    foreach (var item in response.Items)
+    {
+        if (item.Fungible_info?.Symbol == "SOL")
+            sol = item.Amount_usd ?? 0;
+        else if (item.Fungible_info?.Symbol == "wSOL")
+            wsol = item.Amount_usd ?? 0;
+        else if (item.Fungible_info?.Symbol == "USDC")
+            usdc = item.Amount_usd ?? 0;
+    }
+
+    return new BalanceData
+    {
+        Sol = sol,
+        WSol = wsol,
+        Usdc = usdc,
+        TotalUsd = sol + wsol + usdc
+    };
+}
+
+// Вспомогательные классы
+private class WalletInfo
+{
+    public int Number { get; set; }
+    public string Address { get; set; } = string.Empty;
+    public string Sol { get; set; } = string.Empty;
+    public string WSol { get; set; } = string.Empty;
+    public string Usdc { get; set; } = string.Empty;
+    public string All { get; set; } = string.Empty;
+}
+
+private class BalanceData
+{
+    public decimal Sol { get; set; }
+    public decimal WSol { get; set; }
+    public decimal Usdc { get; set; }
+    public decimal TotalUsd { get; set; }
+}
+
+private class BalanceResponse
+{
+    public List<BalanceItem>? Items { get; set; }
+}
+
+private class BalanceItem
+{
+    public decimal? Amount_usd { get; set; }
+    public FungibleInfo? Fungible_info { get; set; }
+}
+
+private class FungibleInfo
+{
+    public string? Symbol { get; set; }
+}
 
     private async Task OpenConfigDialog()
     {
