@@ -207,18 +207,40 @@ private async Task RescanAllPortfolios()
 
                 try
                 {
-                    // Используем те же сервисы что и в WalletConfigDialog
-                    var balances = await GetBalancesForAddress(wallet.Address);
+                    Console.WriteLine($"Rescanning wallet: {wallet.Address} in portfolio: {portfolio.Name}");
                     
-                    wallet.Sol = balances.Sol.ToString("G");
-                    wallet.WSol = balances.WSol.ToString("G");
-                    wallet.Usdc = balances.Usdc.ToString("G");
-                    wallet.All = balances.TotalUsd.ToString("F2");
+                    var url = $"https://vercel-apip-roxima.vercel.app/api/balances?address={wallet.Address}";
+                    var response = await Http.GetFromJsonAsync<BalanceResponse>(url);
+                    
+                    if (response?.Items != null)
+                    {
+                        decimal sol = 0, wsol = 0, usdc = 0;
 
-                    totalSol += balances.Sol;
-                    totalWSol += balances.WSol;
-                    totalUsdc += balances.Usdc;
-                    totalAll += balances.TotalUsd;
+                        foreach (var item in response.Items)
+                        {
+                            var symbol = item.Fungible_info?.Symbol;
+                            var amount = item.Amount_usd ?? 0;
+
+                            if (symbol == "SOL")
+                                sol = amount;
+                            else if (symbol == "wSOL" || symbol == "WSOL")
+                                wsol = amount;
+                            else if (symbol == "USDC")
+                                usdc = amount;
+                        }
+
+                        wallet.Sol = sol.ToString("G");
+                        wallet.WSol = wsol.ToString("G");
+                        wallet.Usdc = usdc.ToString("G");
+                        wallet.All = (sol + wsol + usdc).ToString("F2");
+
+                        totalSol += sol;
+                        totalWSol += wsol;
+                        totalUsdc += usdc;
+                        totalAll += sol + wsol + usdc;
+                        
+                        Console.WriteLine($"Updated wallet: Sol={sol}, wSOL={wsol}, USDC={usdc}");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -235,6 +257,8 @@ private async Task RescanAllPortfolios()
             portfolio.WSol = totalWSol.ToString("F2");
             portfolio.Usdc = totalUsdc.ToString("F2");
             portfolio.All = totalAll.ToString("F2");
+            
+            Console.WriteLine($"Portfolio {portfolio.Name} updated: Total={totalAll}");
         }
 
         await SavePortfoliosToSession();
@@ -247,35 +271,6 @@ private async Task RescanAllPortfolios()
     }
 }
 
-// Метод для получения балансов (вызывает API через HttpClient)
-private async Task<BalanceData> GetBalancesForAddress(string address)
-{
-    var url = $"https://vercel-apip-roxima.vercel.app/api/balances?address={address}";
-    var response = await Http.GetFromJsonAsync<BalanceResponse>(url);
-    
-    if (response?.Items == null)
-        return new BalanceData();
-
-    decimal sol = 0, wsol = 0, usdc = 0;
-
-    foreach (var item in response.Items)
-    {
-        if (item.Fungible_info?.Symbol == "SOL")
-            sol = item.Amount_usd ?? 0;
-        else if (item.Fungible_info?.Symbol == "wSOL")
-            wsol = item.Amount_usd ?? 0;
-        else if (item.Fungible_info?.Symbol == "USDC")
-            usdc = item.Amount_usd ?? 0;
-    }
-
-    return new BalanceData
-    {
-        Sol = sol,
-        WSol = wsol,
-        Usdc = usdc,
-        TotalUsd = sol + wsol + usdc
-    };
-}
 
 // Вспомогательные классы
 private class WalletInfo
@@ -286,14 +281,6 @@ private class WalletInfo
     public string WSol { get; set; } = string.Empty;
     public string Usdc { get; set; } = string.Empty;
     public string All { get; set; } = string.Empty;
-}
-
-private class BalanceData
-{
-    public decimal Sol { get; set; }
-    public decimal WSol { get; set; }
-    public decimal Usdc { get; set; }
-    public decimal TotalUsd { get; set; }
 }
 
 private class BalanceResponse
