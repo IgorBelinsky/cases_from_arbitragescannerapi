@@ -179,51 +179,58 @@
     }
 
     private async Task<bool> IsAddressDuplicate(Wallet currentWallet)
+{
+    try
     {
-        try
-        {
-            var address = currentWallet.Address;
+        var address = currentWallet.Address;
 
-            // Проверка в текущем портфеле
-            if (wallets.Any(w => w != currentWallet && w.Address.Equals(address, StringComparison.OrdinalIgnoreCase)))
+        // Проверка в текущем портфеле (исключаем сам проверяемый кошелек)
+        if (wallets.Any(w => w != currentWallet && 
+                            !string.IsNullOrWhiteSpace(w.Address) && 
+                            w.Address.Equals(address, StringComparison.OrdinalIgnoreCase)))
+        {
+            Console.WriteLine("Duplicate found in current portfolio");
+            return true;
+        }
+
+        // Проверка в других портфелях
+        var portfoliosJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "portfolios");
+        if (string.IsNullOrEmpty(portfoliosJson))
+            return false;
+
+        var portfolios = JsonSerializer.Deserialize<List<PortfolioInfo>>(portfoliosJson);
+        if (portfolios == null)
+            return false;
+
+        foreach (var portfolio in portfolios)
+        {
+            // Пропускаем текущий портфель (уже проверили выше)
+            if (portfolio.Id == PortfolioId)
+                continue;
+
+            var walletsJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", $"wallets_{portfolio.Id}");
+            if (string.IsNullOrEmpty(walletsJson))
+                continue;
+
+            var otherWallets = JsonSerializer.Deserialize<List<Wallet>>(walletsJson);
+            if (otherWallets != null && 
+                otherWallets.Any(w => !string.IsNullOrWhiteSpace(w.Address) && 
+                                     w.Address.Equals(address, StringComparison.OrdinalIgnoreCase)))
             {
+                Console.WriteLine($"Duplicate found in portfolio {portfolio.Id}");
                 return true;
             }
-
-            // Проверка в других портфелях
-            var portfoliosJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "portfolios");
-            if (string.IsNullOrEmpty(portfoliosJson))
-                return false;
-
-            var portfolios = JsonSerializer.Deserialize<List<PortfolioInfo>>(portfoliosJson);
-            if (portfolios == null)
-                return false;
-
-            foreach (var portfolio in portfolios)
-            {
-                // Пропускаем текущий портфель (уже проверили выше)
-                if (portfolio.Id == PortfolioId)
-                    continue;
-
-                var walletsJson = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", $"wallets_{portfolio.Id}");
-                if (string.IsNullOrEmpty(walletsJson))
-                    continue;
-
-                var otherWallets = JsonSerializer.Deserialize<List<Wallet>>(walletsJson);
-                if (otherWallets != null && otherWallets.Any(w => w.Address.Equals(address, StringComparison.OrdinalIgnoreCase)))
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error checking duplicate address: {ex.Message}");
-            return false;
-        }
+
+        Console.WriteLine("No duplicates found");
+        return false;
     }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error checking duplicate address: {ex.Message}");
+        return false;
+    }
+}
 
     private async Task ShowErrorModal(string message)
     {
