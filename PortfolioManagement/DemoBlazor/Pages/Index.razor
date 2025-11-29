@@ -5,7 +5,8 @@
 @using System.Net.Http.Json
 @using System.Text.Json
 @using Microsoft.JSInterop
-//@using MudBlazor
+<!--@using MudBlazor-->
+
 
 <MudPaper Class="pa-4">
     <MudText Typo="Typo.h5">Portfolios</MudText>
@@ -16,6 +17,7 @@
         <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="OpenConfigDialog" Disabled="@(selectedPortfolio == null)">Config</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedPortfolio" Disabled="@(selectedPortfolio == null)">Delete</MudButton>
     </div>
+
 
     <MudTable 
         Items="@portfolios" 
@@ -50,13 +52,23 @@
             <MudTd DataLabel="USDC">@context.Usdc</MudTd>
             <MudTd DataLabel="All">@context.All</MudTd>
         </RowTemplate>
+        <FooterContent>
+            <MudTd Style="font-weight: bold;">Total:</MudTd>
+            <MudTd></MudTd>
+            <MudTd Style="font-weight: bold;">@GetTotalPortfolioSol().ToString("F2")</MudTd>
+            <MudTd Style="font-weight: bold;">@GetTotalPortfolioWSol().ToString("F2")</MudTd>
+            <MudTd Style="font-weight: bold;">@GetTotalPortfolioUsdc().ToString("F2")</MudTd>
+            <MudTd Style="font-weight: bold;">@GetTotalPortfolioAll().ToString("F2")</MudTd>
+        </FooterContent>
     </MudTable>
 </MudPaper>
+
 
 @code {
     private List<Portfolio> portfolios = new List<Portfolio>();
     private Portfolio? selectedPortfolio;
     private bool isInitialized = false;
+
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -67,6 +79,7 @@
             StateHasChanged();
         }
     }
+
 
     private async Task LoadPortfoliosFromSession()
     {
@@ -89,6 +102,7 @@
             Console.WriteLine($"Error loading portfolios: {ex.Message}");
         }
 
+
         // Если данных нет или произошла ошибка, создаем начальные данные
         portfolios = new List<Portfolio>
         {
@@ -98,6 +112,7 @@
         };
         await SavePortfoliosToSession();
     }
+
 
     private async Task SavePortfoliosToSession()
     {
@@ -112,6 +127,7 @@
         }
     }
 
+
     private async Task AddNewPortfolio()
     {
         var newPortfolio = new Portfolio 
@@ -122,6 +138,7 @@
         portfolios.Add(newPortfolio);
         await SavePortfoliosToSession();
     }
+
 
     private async Task DeleteSelectedPortfolio()
     {
@@ -137,6 +154,7 @@
         }
     }
 
+
     private void RenumberPortfolios()
     {
         for (int i = 0; i < portfolios.Count; i++)
@@ -144,6 +162,7 @@
             portfolios[i].Number = i + 1;
         }
     }
+
 
     private string SelectedRowStyleFunc(Portfolio portfolio, int rowNumber)
     {
@@ -154,43 +173,67 @@
         return string.Empty;
     }
 
+
     private async Task OpenConfigDialog()
-{
-    if (selectedPortfolio == null)
-        return;
-
-    var parameters = new DialogParameters
     {
-        { "PortfolioId", selectedPortfolio.Id }
-    };
-
-    var options = new DialogOptions 
-    { 
-        MaxWidth = MaxWidth.Large,
-        FullWidth = true,
-        CloseButton = true,
-        CloseOnEscapeKey = false,
-        DisableBackdropClick = true
-    };
-
-    var dialogReference = DialogService.Show<WalletConfigDialog>("", parameters, options);
-    var result = await dialogReference.Result;
-
-    // После закрытия диалога получаем данные через componentInstance
-    var dialogInstance = (WalletConfigDialog)dialogReference.Dialog;
-    var summary = dialogInstance.GetSummary();
-    
-    // Обновляем портфолио
-    selectedPortfolio.Sol = summary.TotalSol.ToString("F2");
-    selectedPortfolio.WSol = summary.TotalWSol.ToString("F2");
-    selectedPortfolio.Usdc = summary.TotalUsdc.ToString("F2");
-    selectedPortfolio.All = summary.TotalAll.ToString("F2");
-    
-    StateHasChanged();
-    await SavePortfoliosToSession();
-}
+        if (selectedPortfolio == null)
+            return;
 
 
+        var parameters = new DialogParameters
+        {
+            { "PortfolioId", selectedPortfolio.Id }
+        };
+
+
+        var options = new DialogOptions 
+        { 
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = true,
+            CloseOnEscapeKey = false,
+            DisableBackdropClick = true
+        };
+
+
+        var dialogReference = DialogService.Show<WalletConfigDialog>("", parameters, options);
+        var result = await dialogReference.Result;
+
+
+        // После закрытия диалога получаем данные через componentInstance
+        var dialogInstance = (WalletConfigDialog)dialogReference.Dialog;
+        var summary = dialogInstance.GetSummary();
+        
+        // Обновляем портфолио
+        selectedPortfolio.Sol = summary.TotalSol.ToString("F2");
+        selectedPortfolio.WSol = summary.TotalWSol.ToString("F2");
+        selectedPortfolio.Usdc = summary.TotalUsdc.ToString("F2");
+        selectedPortfolio.All = summary.TotalAll.ToString("F2");
+        
+        StateHasChanged();
+        await SavePortfoliosToSession();
+    }
+
+    // Методы для подсчета итоговых сумм по всем портфелям
+    private decimal GetTotalPortfolioSol()
+    {
+        return portfolios.Sum(p => decimal.TryParse(p.Sol, out var val) ? val : 0);
+    }
+
+    private decimal GetTotalPortfolioWSol()
+    {
+        return portfolios.Sum(p => decimal.TryParse(p.WSol, out var val) ? val : 0);
+    }
+
+    private decimal GetTotalPortfolioUsdc()
+    {
+        return portfolios.Sum(p => decimal.TryParse(p.Usdc, out var val) ? val : 0);
+    }
+
+    private decimal GetTotalPortfolioAll()
+    {
+        return portfolios.Sum(p => decimal.TryParse(p.All, out var val) ? val : 0);
+    }
 
 
     private class Portfolio
