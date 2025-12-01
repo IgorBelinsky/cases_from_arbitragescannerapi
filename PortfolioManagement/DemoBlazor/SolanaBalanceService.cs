@@ -22,64 +22,65 @@ namespace DemoBlazor
         }
 
         public async Task<WalletBalances> GetBalancesAsync(string address)
+{
+    if (string.IsNullOrWhiteSpace(address))
+    {
+        return new WalletBalances();
+    }
+
+    try
+    {
+        var url = $"{VercelApiUrl}?address={Uri.EscapeDataString(address)}&limit=50";
+        
+        Console.WriteLine($"Fetching balances from: {url}");
+
+        var response = await _httpClient.GetFromJsonAsync<TokenBalanceResponse>(url);
+
+        if (response?.Data == null)
         {
-            if (string.IsNullOrWhiteSpace(address))
-            {
-                return new WalletBalances();
-            }
-
-            try
-            {
-                var url = $"{VercelApiUrl}?address={Uri.EscapeDataString(address)}&limit=50";
-                
-                Console.WriteLine($"Fetching balances from: {url}");
-
-                var response = await _httpClient.GetFromJsonAsync<TokenBalanceResponse>(url);
-
-                if (response?.Data == null)
-                {
-                    Console.WriteLine("No balance data received");
-                    return new WalletBalances();
-                }
-
-                var balances = new WalletBalances();
-
-                // Найти SOL
-                var solToken = response.Data.FirstOrDefault(t => t.TokenAddress == SOL_ADDRESS);
-                if (solToken != null)
-                {
-                    balances.Sol = solToken.Amount / 1_000_000_000m; // Конвертируем lamports в SOL
-                    Console.WriteLine($"SOL: {balances.Sol}, USD: {solToken.AmountUsd}");
-                    balances.TotalUsd += solToken.AmountUsd ?? 0;
-                }
-
-                // Найти wSOL
-                var wsolToken = response.Data.FirstOrDefault(t => t.TokenAddress == WSOL_ADDRESS);
-                if (wsolToken != null)
-                {
-                    balances.WSol = wsolToken.Amount;
-                    Console.WriteLine($"wSOL: {balances.WSol}, USD: {wsolToken.AmountUsd}");
-                    balances.TotalUsd += wsolToken.AmountUsd ?? 0;
-                }
-
-                // Найти USDC
-                var usdcToken = response.Data.FirstOrDefault(t => t.TokenAddress == USDC_ADDRESS);
-                if (usdcToken != null)
-                {
-                    balances.Usdc = usdcToken.Amount;
-                    Console.WriteLine($"USDC: {balances.Usdc}, USD: {usdcToken.AmountUsd}");
-                    balances.TotalUsd += usdcToken.AmountUsd ?? 0;
-                }
-
-                Console.WriteLine($"Total USD: {balances.TotalUsd}");
-
-                return balances;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error fetching balances: {ex.Message}");
-                return new WalletBalances();
-            }
+            Console.WriteLine("No balance data received");
+            return new WalletBalances();
         }
+
+        var balances = new WalletBalances();
+
+        // Найти SOL - БЕЗ ДЕЛЕНИЯ, Amount уже в SOL
+        var solToken = response.Data.FirstOrDefault(t => t.TokenAddress == SOL_ADDRESS);
+        if (solToken != null)
+        {
+            balances.Sol = solToken.Amount; // ← ИСПРАВЛЕНО: убрано деление
+            Console.WriteLine($"SOL: {balances.Sol}, USD: {solToken.AmountUsd}");
+            balances.TotalUsd += solToken.AmountUsd ?? 0;
+        }
+
+        // Найти wSOL
+        var wsolToken = response.Data.FirstOrDefault(t => t.TokenAddress == WSOL_ADDRESS);
+        if (wsolToken != null)
+        {
+            balances.WSol = wsolToken.Amount;
+            Console.WriteLine($"wSOL: {balances.WSol}, USD: {wsolToken.AmountUsd}");
+            balances.TotalUsd += wsolToken.AmountUsd ?? 0;
+        }
+
+        // Найти USDC
+        var usdcToken = response.Data.FirstOrDefault(t => t.TokenAddress == USDC_ADDRESS);
+        if (usdcToken != null)
+        {
+            balances.Usdc = usdcToken.Amount;
+            Console.WriteLine($"USDC: {balances.Usdc}, USD: {usdcToken.AmountUsd}");
+            balances.TotalUsd += usdcToken.AmountUsd ?? 0;
+        }
+
+        Console.WriteLine($"Total USD: {balances.TotalUsd}");
+
+        return balances;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error fetching balances: {ex.Message}");
+        return new WalletBalances();
+    }
+}
+
     }
 }
