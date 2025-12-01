@@ -44,16 +44,16 @@ namespace DemoBlazor
 
         var balances = new WalletBalances();
 
-        // Найти SOL - БЕЗ ДЕЛЕНИЯ, Amount уже в SOL
+        // SOL
         var solToken = response.Data.FirstOrDefault(t => t.TokenAddress == SOL_ADDRESS);
         if (solToken != null)
         {
-            balances.Sol = solToken.Amount; // ← ИСПРАВЛЕНО: убрано деление
+            balances.Sol = solToken.Amount; // 
             Console.WriteLine($"SOL: {balances.Sol}, USD: {solToken.AmountUsd}");
             balances.TotalUsd += solToken.AmountUsd ?? 0;
         }
 
-        // Найти wSOL
+        // wSOL
         var wsolToken = response.Data.FirstOrDefault(t => t.TokenAddress == WSOL_ADDRESS);
         if (wsolToken != null)
         {
@@ -62,7 +62,7 @@ namespace DemoBlazor
             balances.TotalUsd += wsolToken.AmountUsd ?? 0;
         }
 
-        // Найти USDC
+        // USDC
         var usdcToken = response.Data.FirstOrDefault(t => t.TokenAddress == USDC_ADDRESS);
         if (usdcToken != null)
         {
