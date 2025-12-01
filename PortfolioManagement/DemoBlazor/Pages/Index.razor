@@ -14,7 +14,7 @@
     <MudDivider Class="my-2" />
     
     <div class="d-flex gap-2 mb-4">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewPortfolio" Disabled="@(portfolios.Count >= 4)">Add new</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddNewPortfolio" Disabled="@(portfolios.Count >= 5)">Add new</MudButton>
     <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="OpenConfigDialog" Disabled="@(selectedPortfolio == null)">Config</MudButton>
     <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedPortfolio" Disabled="@(selectedPortfolio == null)">Delete</MudButton>
     <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="RescanAllPortfolios">Rescan</MudButton>
