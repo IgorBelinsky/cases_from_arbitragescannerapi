@@ -11,8 +11,3 @@ Case: Grouping crypto-account addresses into “portfolios” or any named sets
 
 Try https://ArbitrageScannerAPI.github.io/cases/PortfolioManagement/
 
-
-
-## 📝 API примеры
-
-
