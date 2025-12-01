@@ -1,17 +1,14 @@
-# templates_4_API
+# samples_4_API
 
-Примеры использования [API](https://api-ascn-ai.readme.io/) к индексированным данным из ончейна в Blazor Webassembly приложениях.
+Examples of using [API](https://api-ascn-ai.readme.io/) to indexed data from the on-chain in Blazor Webassembly applications.
 
-## 📦 Структура
 
-- `api_csharp_httpclient/` — пример на C#
-- **`PortfolioManagement/DemoBlazor/`** — интерактивное веб-приложение на Blazor WASM
+## 🚀 Application demo
 
-## 🚀 Демо приложение
+Blazor WASM application with MudBlazor components:
 
-Blazor WASM приложение с MudBlazor компонентами:
-
-**Адрес (gh-pages):** https://ArbitrageScannerAPI.github.io/cases/PortfolioManagement/
+Case: Grouping crypto-account addresses into “portfolios” or any named sets
+Try https://ArbitrageScannerAPI.github.io/cases/PortfolioManagement/
 
 
 
